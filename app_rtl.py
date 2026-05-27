@@ -93,9 +93,10 @@ if st.button("🚀 GENERAR RTL"):
                         segmentos.append(idx_tabla)
 
                     dist_total = 0
-                    for s in segmentos:
-                        if s < len(tabla):
-                            dist_total += tabla[s]["dist"]
+                    for k in range(len(ruta)):
+                        idx_tabla = orden_puntos.index(ruta[k])
+                        dist_total += tabla[idx_tabla]["dist"]
+
 
                     # último segmento define colindante
                     ultimo_idx = segmentos[-1] if segmentos else 0
