@@ -1,4 +1,4 @@
-import streamlit as st
+        import streamlit as st
 
 st.set_page_config(page_title="RTL–MC PRECISO PRO", layout="wide")
 st.title("🧭 Generador RTL–MC PRECISO PRO")
@@ -8,7 +8,7 @@ linderos = st.text_area("📐 LINDEROS (con continúa)")
 colindantes = st.text_area("🏡 TABLA ORDEN–COLINDANTES")
 
 def formato_col(v):
-    return str(v).replace(".", ",")
+    return str(round(v,2)).replace(".", ",")
 
 if st.button("🚀 GENERAR RTL"):
 
@@ -22,10 +22,10 @@ if st.button("🚀 GENERAR RTL"):
         for linea in puntos.strip().split("\n"):
             p,n,e = linea.split(",")
             p = p.zfill(2)
-            puntos_dict[p] = (n,e)
+            puntos_dict[p] = (float(n),float(e))
             orden_puntos.append(p)
 
-        # -------- TABLA --------
+        # -------- TABLA ORDEN --------
         tabla = []
         for linea in colindantes.strip().split("\n"):
             partes = linea.split(",")
@@ -35,12 +35,10 @@ if st.button("🚀 GENERAR RTL"):
                 "npn": partes[3],
                 "fmi": partes[4],
                 "tit": partes[5],
-                "dist": partes[6]
+                "dist": float(partes[6])
             })
 
-        idx = 0
-
-        # -------- BLOQUES --------
+        # -------- LINDEROS --------
         lineas = linderos.strip().split("\n")
         i = 0
 
@@ -56,6 +54,7 @@ if st.button("🚀 GENERAR RTL"):
                 bloque = [linea]
                 i += 1
 
+                # agrupar continúa
                 while i < len(lineas) and "contin" in lineas[i].lower():
                     bloque.append(lineas[i].strip())
                     i += 1
@@ -76,10 +75,33 @@ if st.button("🚀 GENERAR RTL"):
                     N_ini,E_ini = puntos_dict[p_ini]
                     N_fin,E_fin = puntos_dict[p_fin]
 
-                    # intermedios
+                    # -------- CALCULAR SEGMENTOS --------
                     i1 = orden_puntos.index(p_ini)
                     i2 = orden_puntos.index(p_fin)
 
+                    # obtener rutas
+                    if i2 > i1:
+                        ruta = orden_puntos[i1:i2]
+                    else:
+                        ruta = orden_puntos[i1:] + orden_puntos[:i2]
+
+                    # -------- SUMAR DISTANCIAS --------
+                    segmentos = []
+
+                    for k in range(len(ruta)):
+                        idx_tabla = (orden_puntos.index(ruta[k]))
+                        segmentos.append(idx_tabla)
+
+                    dist_total = 0
+                    for s in segmentos:
+                        if s < len(tabla):
+                            dist_total += tabla[s]["dist"]
+
+                    # último segmento define colindante
+                    ultimo_idx = segmentos[-1] if segmentos else 0
+                    fila = tabla[ultimo_idx]
+
+                    # -------- INTERMEDIOS --------
                     if i2 < i1:
                         intermedios = orden_puntos[i1+1:] + orden_puntos[:i2]
                     else:
@@ -97,25 +119,24 @@ if st.button("🚀 GENERAR RTL"):
                             texto_int += f"punto {p} N= {formato_col(N)} m, E= {formato_col(E)} m, "
                         texto_int = texto_int.rstrip(", ") + ", "
 
-                    fila = tabla[idx]
-                    idx += 1
-
+                    # -------- REDACCIÓN --------
                     if j == 0:
                         texto_bloque += (
-                            f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
-                            f"{tipo} en sentido {sentido}, {texto_int}"
+                            f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, "
+                            f"E= {formato_col(E_ini)} m; {tipo} en sentido {sentido}, {texto_int}"
                             f"hasta encontrar el punto número {p_fin} de coordenadas planas "
                             f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
                         )
                     else:
                         texto_bloque += (
-                            f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
-                            f"{tipo} en sentido {sentido}, {texto_int}"
+                            f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, "
+                            f"E= {formato_col(E_ini)} m; {tipo} en sentido {sentido}, {texto_int}"
                             f"hasta encontrar el punto número {p_fin} de coordenadas planas "
                             f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
                         )
 
-                    if j == len(bloque)-1:
+                    # -------- CIERRE TRAMO --------
+                    if j == len(bloque) - 1:
 
                         if fila["cond"].upper() == "TRASLAPA":
                             txt_col = f"que traslapa con el Número Predial Nacional {fila['npn']}, Folio de Matrícula Inmobiliaria {fila['fmi']} y cuyo titular catastral es {fila['tit']}"
@@ -125,7 +146,7 @@ if st.button("🚀 GENERAR RTL"):
                             txt_col = ""
 
                         texto_bloque += (
-                            f"; en una distancia de {formato_col(fila['dist'])} m, colindando con {fila['col']}"
+                            f"; en una distancia de {formato_col(dist_total)} m, colindando con {fila['col']}"
                         )
 
                         if txt_col:
@@ -140,3 +161,4 @@ if st.button("🚀 GENERAR RTL"):
 
     except Exception as e:
         st.error(f"Error: {e}")
+``
