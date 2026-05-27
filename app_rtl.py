@@ -1,14 +1,14 @@
 import streamlit as st
 
-st.set_page_config(page_title="RTL–MC AUTOMÁTICO PRO", layout="wide")
-st.title("🧭 Generador RTL–MC AUTOMÁTICO PRO")
+st.set_page_config(page_title="RTL–MC PRECISO PRO", layout="wide")
+st.title("🧭 Generador RTL–MC PRECISO PRO")
 
-# INPUTS
 puntos = st.text_area("📌 TABLA DE PUNTOS (Punto,Norte,Este)")
-tabla = st.text_area("📊 TABLA ORDEN–COLINDANTES")
+linderos = st.text_area("📐 LINDEROS (con continúa)")
+colindantes = st.text_area("🏡 TABLA ORDEN–COLINDANTES")
 
-def formato_col(valor):
-    return str(valor).replace(".", ",")
+def formato_col(v):
+    return str(v).replace(".", ",")
 
 if st.button("🚀 GENERAR RTL"):
 
@@ -20,126 +20,121 @@ if st.button("🚀 GENERAR RTL"):
         orden_puntos = []
 
         for linea in puntos.strip().split("\n"):
-            partes = linea.split(",")
-            p = partes[0].zfill(2)
-            N = partes[1]
-            E = partes[2]
-
-            puntos_dict[p] = (N, E)
+            p,n,e = linea.split(",")
+            p = p.zfill(2)
+            puntos_dict[p] = (n,e)
             orden_puntos.append(p)
 
-        # -------- TABLA ORDEN --------
-        data = []
-
-        for linea in tabla.strip().split("\n"):
+        # -------- TABLA --------
+        tabla = []
+        for linea in colindantes.strip().split("\n"):
             partes = linea.split(",")
-            orden = int(partes[0])
-            nombre = partes[1]
-            condicion = partes[2]
-            npn = partes[3]
-            fmi = partes[4]
-            titular = partes[5]
-            distancia = partes[6]
-
-            data.append({
-                "orden": orden,
-                "nombre": nombre,
-                "condicion": condicion,
-                "npn": npn,
-                "fmi": fmi,
-                "titular": titular,
-                "dist": distancia
+            tabla.append({
+                "col": partes[1],
+                "cond": partes[2],
+                "npn": partes[3],
+                "fmi": partes[4],
+                "tit": partes[5],
+                "dist": partes[6]
             })
 
-        # -------- AGRUPAR POR COLINDANTE --------
-        bloques = []
-        bloque_actual = [data[0]]
+        idx = 0
 
-        for i in range(1, len(data)):
-            if data[i]["nombre"] == data[i-1]["nombre"]:
-                bloque_actual.append(data[i])
+        # -------- BLOQUES --------
+        lineas = linderos.strip().split("\n")
+        i = 0
+
+        while i < len(lineas):
+
+            linea = lineas[i].strip()
+
+            if linea.startswith("Lindero"):
+
+                salida += "\n"
+                titulo = linea.split(":")[0]
+
+                bloque = [linea]
+                i += 1
+
+                while i < len(lineas) and "contin" in lineas[i].lower():
+                    bloque.append(lineas[i].strip())
+                    i += 1
+
+                texto_bloque = ""
+
+                for j, tramo in enumerate(bloque):
+
+                    contenido = tramo.split(":")[1]
+                    datos = contenido.split(",")
+
+                    rango = datos[0].split("al")
+                    sentido = datos[1].replace("sentido","").strip()
+
+                    p_ini = rango[0].split()[-1].zfill(2)
+                    p_fin = rango[1].strip().zfill(2)
+
+                    N_ini,E_ini = puntos_dict[p_ini]
+                    N_fin,E_fin = puntos_dict[p_fin]
+
+                    # intermedios
+                    i1 = orden_puntos.index(p_ini)
+                    i2 = orden_puntos.index(p_fin)
+
+                    if i2 < i1:
+                        intermedios = orden_puntos[i1+1:] + orden_puntos[:i2]
+                    else:
+                        intermedios = orden_puntos[i1+1:i2]
+
+                    tipo = "en línea recta"
+                    if intermedios:
+                        tipo = "en línea quebrada"
+
+                    texto_int = ""
+                    if intermedios:
+                        texto_int = "pasando por los puntos de coordenadas "
+                        for p in intermedios:
+                            N,E = puntos_dict[p]
+                            texto_int += f"punto {p} N= {formato_col(N)} m, E= {formato_col(E)} m, "
+                        texto_int = texto_int.rstrip(", ") + ", "
+
+                    fila = tabla[idx]
+                    idx += 1
+
+                    if j == 0:
+                        texto_bloque += (
+                            f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
+                            f"{tipo} en sentido {sentido}, {texto_int}"
+                            f"hasta encontrar el punto número {p_fin} de coordenadas planas "
+                            f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
+                        )
+                    else:
+                        texto_bloque += (
+                            f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
+                            f"{tipo} en sentido {sentido}, {texto_int}"
+                            f"hasta encontrar el punto número {p_fin} de coordenadas planas "
+                            f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
+                        )
+
+                    if j == len(bloque)-1:
+
+                        if fila["cond"].upper() == "TRASLAPA":
+                            txt_col = f"que traslapa con el Número Predial Nacional {fila['npn']}, Folio de Matrícula Inmobiliaria {fila['fmi']} y cuyo titular catastral es {fila['tit']}"
+                        elif fila["cond"].upper() == "CORRESPONDE":
+                            txt_col = f"que corresponde con el Número Predial Nacional {fila['npn']}, Folio de Matrícula Inmobiliaria {fila['fmi']} y cuyo titular catastral es {fila['tit']}"
+                        else:
+                            txt_col = ""
+
+                        texto_bloque += (
+                            f"; en una distancia de {formato_col(fila['dist'])} m, colindando con {fila['col']}"
+                        )
+
+                        if txt_col:
+                            texto_bloque += f", {txt_col}."
+
+                salida += f"{titulo}: {texto_bloque}"
+
             else:
-                bloques.append(bloque_actual)
-                bloque_actual = [data[i]]
-
-        bloques.append(bloque_actual)
-
-        # -------- GENERAR RTL --------
-        lindero_num = 1
-
-        for bloque in bloques:
-
-            salida += f"\nLindero {lindero_num}: "
-
-            texto = ""
-
-            for i, tramo in enumerate(bloque):
-
-                p_ini = orden_puntos[tramo["orden"] - 1]
-                p_fin = orden_puntos[tramo["orden"]]
-
-                N_ini, E_ini = puntos_dict[p_ini]
-                N_fin, E_fin = puntos_dict[p_fin]
-
-                # DETECTAR INTERMEDIOS
-                i1 = orden_puntos.index(p_ini)
-                i2 = orden_puntos.index(p_fin)
-
-                if i2 < i1:
-                    intermedios = orden_puntos[i1+1:] + orden_puntos[:i2]
-                else:
-                    intermedios = orden_puntos[i1+1:i2]
-
-                tipo_linea = "en línea recta"
-                if len(intermedios) > 0:
-                    tipo_linea = "en línea quebrada"
-
-                texto_intermedios = ""
-                if intermedios:
-                    texto_intermedios = "pasando por los puntos de coordenadas "
-                    for p in intermedios:
-                        N, E = puntos_dict[p]
-                        texto_intermedios += f"punto {p} N= {formato_col(N)} m, E= {formato_col(E)} m, "
-                    texto_intermedios = texto_intermedios.rstrip(", ") + ", "
-
-                if i == 0:
-                    texto += (
-                        f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, "
-                        f"E= {formato_col(E_ini)} m; {tipo_linea}, {texto_intermedios}"
-                        f"hasta encontrar el punto número {p_fin} de coordenadas planas "
-                        f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
-                    )
-                else:
-                    texto += (
-                        f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, "
-                        f"E= {formato_col(E_ini)} m; {tipo_linea}, {texto_intermedios}"
-                        f"hasta encontrar el punto número {p_fin} de coordenadas planas "
-                        f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
-                    )
-
-            # -------- COLINDANTE FINAL --------
-            ultimo = bloque[-1]
-
-            if ultimo["condicion"].upper() == "TRASLAPA":
-                colindancia = (
-                    f"colindando con {ultimo['nombre']}, que traslapa con el Número Predial Nacional {ultimo['npn']}, "
-                    f"Folio de Matrícula Inmobiliaria {ultimo['fmi']} y cuyo titular catastral es {ultimo['titular']}"
-                )
-            elif ultimo["condicion"].upper() == "CORRESPONDE":
-                colindancia = (
-                    f"colindando con {ultimo['nombre']}, que corresponde con el Número Predial Nacional {ultimo['npn']}, "
-                    f"Folio de Matrícula Inmobiliaria {ultimo['fmi']} y cuyo titular catastral es {ultimo['titular']}"
-                )
-            else:
-                colindancia = f"colindando con {ultimo['nombre']}"
-
-            # -------- DISTANCIA TOTAL --------
-            total_dist = sum(float(t["dist"]) for t in bloque)
-
-            texto += f", en una distancia de {formato_col(total_dist)} m, {colindancia}."
-
-            salida += texto
-            lindero_num += 1
+                i += 1
 
         st.text_area("📄 RESULTADO RTL", salida, height=500)
 
