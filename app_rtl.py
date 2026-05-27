@@ -5,10 +5,10 @@ st.title("🧭 Generador RTL–MC PRECISO PRO")
 
 puntos = st.text_area("📌 TABLA DE PUNTOS (Punto,Norte,Este)")
 linderos = st.text_area("📐 LINDEROS (con continúa)")
-colindantes = st.text_area("🏡 TABLA ORDEN–COLINDANTES")
+col = st.text_area("🏡 TABLA ORDEN–COLINDANTES")
 
 def f(v):
-    return str(round(v,2)).replace(".", ",")
+    return f"{v:.2f}".replace(".", ",")
 
 if st.button("🚀 GENERAR RTL"):
 
@@ -19,16 +19,16 @@ if st.button("🚀 GENERAR RTL"):
         puntos_dict = {}
         orden = []
 
-        for linea in puntos.strip().split("\n"):
-            p,n,e = linea.split(",")
+        for line in puntos.strip().split("\n"):
+            p,n,e = line.split(",")
             p = p.zfill(2)
             puntos_dict[p] = (float(n), float(e))
             orden.append(p)
 
         # -------- TABLA --------
         tabla = []
-        for linea in colindantes.strip().split("\n"):
-            partes = linea.split(",")
+        for line in col.strip().split("\n"):
+            partes = line.split(",")
             tabla.append({
                 "col": partes[1],
                 "cond": partes[2],
@@ -39,29 +39,35 @@ if st.button("🚀 GENERAR RTL"):
             })
 
         lineas = linderos.strip().split("\n")
-        i = 0
 
-        cardinal_actual = ""
+        i = 0
+        cardinal_actual = None
 
         while i < len(lineas):
 
             linea = lineas[i].strip()
 
-            # -------- DETECTAR CARDINALIDAD --------
             if linea.startswith("Lindero"):
+
                 titulo = linea.split(":")[0]
 
-                if "(NORTE)" in titulo:
+                # -------- CARDINALIDAD (SOLO UNA VEZ) --------
+                if "(NORTE)" in titulo and cardinal_actual != "NORTE":
                     salida += "POR EL NORTE:\n\n"
-                elif "(ESTE)" in titulo:
+                    cardinal_actual = "NORTE"
+                elif "(ESTE)" in titulo and cardinal_actual != "ESTE":
                     salida += "POR EL ESTE:\n\n"
-                elif "(SUR)" in titulo:
+                    cardinal_actual = "ESTE"
+                elif "(SUR)" in titulo and cardinal_actual != "SUR":
                     salida += "POR EL SUR:\n\n"
-                elif "(OESTE)" in titulo:
+                    cardinal_actual = "SUR"
+                elif "(OESTE)" in titulo and cardinal_actual != "OESTE":
                     salida += "POR EL OESTE:\n\n"
+                    cardinal_actual = "OESTE"
 
                 salida += f"{titulo.split()[0]} {titulo.split()[1]}:\n"
 
+                # -------- BLOQUE CONTINÚA --------
                 bloque = [linea]
                 i += 1
 
@@ -70,6 +76,7 @@ if st.button("🚀 GENERAR RTL"):
                     i += 1
 
                 fila_final = None
+                texto_lindero = ""
 
                 for j, tramo in enumerate(bloque):
 
@@ -85,16 +92,16 @@ if st.button("🚀 GENERAR RTL"):
                     N_ini,E_ini = puntos_dict[p_ini]
                     N_fin,E_fin = puntos_dict[p_fin]
 
-                    # -------- calcular ruta real --------
                     i1 = orden.index(p_ini)
                     i2 = orden.index(p_fin)
 
+                    # -------- RUTA --------
                     if i2 > i1:
                         ruta = orden[i1:i2]
                     else:
                         ruta = orden[i1:] + orden[:i2]
 
-                    # -------- intermedios --------
+                    # -------- INTERMEDIOS --------
                     if i2 < i1:
                         intermedios = orden[i1+1:] + orden[:i2]
                     else:
@@ -104,25 +111,24 @@ if st.button("🚀 GENERAR RTL"):
                     if intermedios:
                         tipo = "quebrada"
 
-                    texto_intermedios = ""
+                    texto_int = ""
 
-                    # 🔥 singular/plural
                     if len(intermedios) == 1:
                         p2 = intermedios[0]
                         N2,E2 = puntos_dict[p2]
-                        texto_intermedios = f"pasando por el punto de coordenadas punto {p2} N= {f(N2)} m, E= {f(E2)} m, "
+                        texto_int = f"pasando por el punto de coordenadas punto {p2} N= {f(N2)} m, E= {f(E2)} m, "
                     elif len(intermedios) > 1:
-                        texto_intermedios = "pasando por los puntos de coordenadas "
+                        texto_int = "pasando por los puntos de coordenadas "
                         for p2 in intermedios:
                             N2,E2 = puntos_dict[p2]
-                            texto_intermedios += f"punto {p2} N= {f(N2)} m, E= {f(E2)} m, "
-                        texto_intermedios = texto_intermedios.rstrip(", ") + ", "
+                            texto_int += f"punto {p2} N= {f(N2)} m, E= {f(E2)} m, "
+                        texto_int = texto_int.rstrip(", ") + ", "
 
-                    # -------- distancia --------
-                    dist_tramo = 0
+                    # -------- DISTANCIA TRAMO --------
+                    dist = 0
                     for p in ruta:
                         idx = orden.index(p)
-                        dist_tramo += tabla[idx]["dist"]
+                        dist += tabla[idx]["dist"]
 
                     if ruta:
                         idx_last = orden.index(ruta[-1])
@@ -130,24 +136,23 @@ if st.button("🚀 GENERAR RTL"):
 
                     # -------- REDACCIÓN --------
                     if j == 0:
-                        salida += (
+                        texto_lindero += (
                             f"Inicia en el punto {p_ini} con coordenadas planas N= {f(N_ini)} m, E= {f(E_ini)} m; "
-                            f"en línea {tipo} en sentido {sentido}, {texto_intermedios}"
-                            f"en una distancia de {f(dist_tramo)} m, "
-                            f"hasta encontrar el punto número {p_fin} de coordenadas planas "
+                            f"en línea {tipo} en sentido {sentido}, {texto_int}"
+                            f"en una distancia de {f(dist)} m, hasta encontrar el punto número {p_fin} de coordenadas planas "
                             f"N= {f(N_fin)} m, E= {f(E_fin)} m.\n\n"
                         )
                     else:
-                        salida += (
+                        texto_lindero += (
                             f"continúa en el punto {p_ini} con coordenadas planas N= {f(N_ini)} m, E= {f(E_ini)} m, "
-                            f"en línea {tipo} en sentido {sentido}, {texto_intermedios}"
-                            f"en una distancia de {f(dist_tramo)} m, "
-                            f"hasta encontrar el punto número {p_fin} de coordenadas planas "
+                            f"en línea {tipo} en sentido {sentido}, {texto_int}"
+                            f"en una distancia de {f(dist)} m, hasta encontrar el punto número {p_fin} de coordenadas planas "
                             f"N= {f(N_fin)} m, E= {f(E_fin)} m.\n\n"
                         )
 
                 # -------- COLINDANTE FINAL --------
                 if fila_final:
+
                     if fila_final["cond"].upper() == "TRASLAPA":
                         txt = f"que traslapa con el Número Predial Nacional {fila_final['npn']}, Folio de Matrícula Inmobiliaria {fila_final['fmi']}, y cuyo titular catastral es {fila_final['tit']}"
                     elif fila_final["cond"].upper() == "CORRESPONDE":
@@ -155,7 +160,17 @@ if st.button("🚀 GENERAR RTL"):
                     else:
                         txt = ""
 
-                    salida = salida.rstrip() + f" colindando con {fila_final['col']}, {txt}.\n\n"
+                    # ✅ punto y coma correcto antes de colindante
+                    texto_lindero = texto_lindero.rstrip()
+                    texto_lindero = texto_lindero.rstrip(".") + f"; colindando con {fila_final['col']}"
+
+                    if txt:
+                        texto_lindero += f", {txt}."
+
+                    else:
+                        texto_lindero += "."
+
+                salida += texto_lindero + "\n"
 
             else:
                 i += 1
