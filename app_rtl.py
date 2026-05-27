@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 st.set_page_config(page_title="RTL–MC PRECISO FINAL", layout="wide")
@@ -36,7 +37,7 @@ if st.button("🚀 GENERAR RTL"):
 
         indice_col = 0
 
-        # ----------- LINDEROS POR BLOQUES -----------
+        # ----------- LINDEROS EN BLOQUES -----------
         lineas = linderos.strip().split("\n")
         i = 0
 
@@ -52,10 +53,21 @@ if st.button("🚀 GENERAR RTL"):
                 bloque = [linea]
                 i += 1
 
-                # AGRUPAR CONTINUA
+                # AGRUPAR CONTINÚA
                 while i < len(lineas) and "contin" in lineas[i].lower():
                     bloque.append(lineas[i].strip())
                     i += 1
+
+                # ✅ TOMAR COLINDANTE UNA VEZ POR BLOQUE
+                nombre, condicion, npn, fmi, titular, distancia = col[indice_col]
+                indice_col += 1
+
+                if condicion.upper() == "TRASLAPA":
+                    colindancia = f"colindando con {nombre}, que traslapa con el Número Predial Nacional {npn}, Folio de Matrícula Inmobiliaria {fmi} y cuyo titular catastral es {titular}"
+                elif condicion.upper() == "CORRESPONDE":
+                    colindancia = f"colindando con {nombre}, que corresponde con el Número Predial Nacional {npn}, Folio de Matrícula Inmobiliaria {fmi} y cuyo titular catastral es {titular}"
+                else:
+                    colindancia = f"colindando con {nombre}"
 
                 texto_bloque = ""
 
@@ -94,30 +106,16 @@ if st.button("🚀 GENERAR RTL"):
                             texto_intermedios += f"punto {p} N= {formato_col(N)} m, E= {formato_col(E)} m, "
                         texto_intermedios = texto_intermedios.rstrip(", ") + ", "
 
-                    # -------- COLINDANTE SOLO DEL ÚLTIMO --------
-                    es_ultimo = (j == len(bloque) - 1)
-
-                    if es_ultimo:
-                        nombre, condicion, npn, fmi, titular, distancia = col[indice_col]
-                        indice_col += 1
-
-                        if condicion.upper() == "TRASLAPA":
-                            colindancia = f"colindando con {nombre}, que traslapa con el Número Predial Nacional {npn}, Folio de Matrícula Inmobiliaria {fmi} y cuyo titular catastral es {titular}"
-                        elif condicion.upper() == "CORRESPONDE":
-                            colindancia = f"colindando con {nombre}, que corresponde con el Número Predial Nacional {npn}, Folio de Matrícula Inmobiliaria {fmi} y cuyo titular catastral es {titular}"
-                        else:
-                            colindancia = f"colindando con {nombre}"
-
+                    # ✅ DISTANCIA SOLO EN EL ÚLTIMO TRAMO
+                    if j == len(bloque) - 1:
                         texto_tramo = (
                             f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
                             f"{tipo_linea} en sentido {sentido}, "
                             f"{texto_intermedios}"
                             f"en una distancia de {formato_col(distancia)} m, "
                             f"hasta encontrar el punto número {p_fin} de coordenadas planas "
-                            f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m; "
-                            f"{colindancia}."
+                            f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
                         )
-
                     else:
                         texto_tramo = (
                             f"Inicia en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; "
@@ -127,11 +125,20 @@ if st.button("🚀 GENERAR RTL"):
                             f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
                         )
 
-                    # ARMADO DEL BLOQUE
                     if j == 0:
                         texto_bloque += texto_tramo
                     else:
-                        texto_bloque += f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, E= {formato_col(E_ini)} m; {tipo_linea} en sentido {sentido}, {texto_intermedios}hasta encontrar el punto número {p_fin} de coordenadas planas N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
+                        texto_bloque += (
+                            f"; continúa en el punto {p_ini} con coordenadas planas N= {formato_col(N_ini)} m, "
+                            f"E= {formato_col(E_ini)} m; {tipo_linea} en sentido {sentido}, "
+                            f"{texto_intermedios}"
+                            f"{'en una distancia de ' + formato_col(distancia) + ' m, ' if j == len(bloque)-1 else ''}"
+                            f"hasta encontrar el punto número {p_fin} de coordenadas planas "
+                            f"N= {formato_col(N_fin)} m, E= {formato_col(E_fin)} m"
+                        )
+
+                # ✅ CIERRE FINAL DEL BLOQUE
+                texto_bloque += f"; {colindancia}."
 
                 salida += f"{prefijo}: {texto_bloque}"
 
